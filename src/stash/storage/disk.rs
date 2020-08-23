@@ -70,16 +70,40 @@ impl DiskStorageConfig {
     }
 
     #[inline]
-    pub fn schema_filename(&self, schema_id: SchemaId) -> PathBuf {
+    pub fn anchors_dir(&self) -> PathBuf {
+        self.data_dir.join("anchors")
+    }
+
+    #[inline]
+    pub fn transitions_dir(&self) -> PathBuf {
+        self.data_dir.join("transitions")
+    }
+
+    #[inline]
+    pub fn schema_filename(&self, schema_id: &SchemaId) -> PathBuf {
         self.schemata_dir()
-            .join(schema_id.to_hex())
+            .join(schema_id.to_bech32().to_string())
             .with_extension(Self::RGB_EXTENSION)
     }
 
     #[inline]
-    pub fn genesis_filename(&self, contract_id: ContractId) -> PathBuf {
+    pub fn genesis_filename(&self, contract_id: &ContractId) -> PathBuf {
         self.geneses_dir()
-            .join(contract_id.to_hex())
+            .join(contract_id.to_bech32().to_string())
+            .with_extension(Self::RGB_EXTENSION)
+    }
+
+    #[inline]
+    pub fn anchor_filename(&self, anchor_id: &AnchorId) -> PathBuf {
+        self.anchors_dir()
+            .join(anchor_id.to_hex())
+            .with_extension(Self::RGB_EXTENSION)
+    }
+
+    #[inline]
+    pub fn transition_filename(&self, transition_id: &TransitionId) -> PathBuf {
+        self.transitions_dir()
+            .join(transition_id.to_hex())
             .with_extension(Self::RGB_EXTENSION)
     }
 
@@ -140,6 +164,24 @@ impl DiskStorage {
             fs::create_dir_all(geneses_dir)?;
         }
 
+        let anchors_dir = config.anchors_dir();
+        if !anchors_dir.exists() {
+            debug!(
+                "RGB anchor data directory '{:?}' is not found; creating one",
+                anchors_dir
+            );
+            fs::create_dir_all(anchors_dir)?;
+        }
+
+        let transitions_dir = config.transitions_dir();
+        if !transitions_dir.exists() {
+            debug!(
+                "RGB state transition data directory '{:?}' is not found; creating one",
+                transitions_dir
+            );
+            fs::create_dir_all(transitions_dir)?;
+        }
+
         Ok(Self { config })
     }
 }
@@ -158,23 +200,23 @@ impl Store for DiskStorage {
     }
 
     #[inline]
-    fn schema(&self, id: SchemaId) -> Result<Schema, Self::Error> {
+    fn schema(&self, id: &SchemaId) -> Result<Schema, Self::Error> {
         Ok(Schema::read_file(self.config.schema_filename(id))?)
     }
 
     #[inline]
-    fn has_schema(&self, id: SchemaId) -> Result<bool, Self::Error> {
+    fn has_schema(&self, id: &SchemaId) -> Result<bool, Self::Error> {
         Ok(self.config.schema_filename(id).as_path().exists())
     }
 
     fn add_schema(&self, schema: &Schema) -> Result<bool, Self::Error> {
-        let filename = self.config.schema_filename(schema.schema_id());
+        let filename = self.config.schema_filename(&schema.schema_id());
         let exists = filename.as_path().exists();
         schema.write_file(filename)?;
         Ok(exists)
     }
 
-    fn remove_schema(&self, id: SchemaId) -> Result<bool, Self::Error> {
+    fn remove_schema(&self, id: &SchemaId) -> Result<bool, Self::Error> {
         let filename = self.config.schema_filename(id);
         let existed = filename.as_path().exists();
         fs::remove_file(filename)?;
@@ -192,25 +234,69 @@ impl Store for DiskStorage {
     }
 
     #[inline]
-    fn genesis(&self, id: ContractId) -> Result<Genesis, Self::Error> {
+    fn genesis(&self, id: &ContractId) -> Result<Genesis, Self::Error> {
         Ok(Genesis::read_file(self.config.genesis_filename(id))?)
     }
 
     #[inline]
-    fn has_genesis(&self, id: ContractId) -> Result<bool, Self::Error> {
+    fn has_genesis(&self, id: &ContractId) -> Result<bool, Self::Error> {
         Ok(self.config.genesis_filename(id).as_path().exists())
     }
 
     fn add_genesis(&self, genesis: &Genesis) -> Result<bool, Self::Error> {
-        let filename = self.config.genesis_filename(genesis.contract_id());
+        let filename = self.config.genesis_filename(&genesis.contract_id());
         let exists = filename.as_path().exists();
         genesis.write_file(filename)?;
         Ok(exists)
     }
 
     #[inline]
-    fn remove_genesis(&self, id: ContractId) -> Result<bool, Self::Error> {
+    fn remove_genesis(&self, id: &ContractId) -> Result<bool, Self::Error> {
         let filename = self.config.genesis_filename(id);
+        let existed = filename.as_path().exists();
+        fs::remove_file(filename)?;
+        Ok(existed)
+    }
+
+    fn anchor(&self, id: &AnchorId) -> Result<Anchor, Self::Error> {
+        Ok(Anchor::read_file(self.config.anchor_filename(id))?)
+    }
+
+    fn has_anchor(&self, id: &AnchorId) -> Result<bool, Self::Error> {
+        Ok(self.config.anchor_filename(id).as_path().exists())
+    }
+
+    fn add_anchor(&self, anchor: &Anchor) -> Result<bool, Self::Error> {
+        let filename = self.config.anchor_filename(&anchor.anchor_id());
+        let exists = filename.as_path().exists();
+        anchor.write_file(filename)?;
+        Ok(exists)
+    }
+
+    fn remove_anchor(&self, id: &AnchorId) -> Result<bool, Self::Error> {
+        let filename = self.config.anchor_filename(id);
+        let existed = filename.as_path().exists();
+        fs::remove_file(filename)?;
+        Ok(existed)
+    }
+
+    fn transition(&self, id: &TransitionId) -> Result<Transition, Self::Error> {
+        Ok(Transition::read_file(self.config.transition_filename(id))?)
+    }
+
+    fn has_transition(&self, id: &TransitionId) -> Result<bool, Self::Error> {
+        Ok(self.config.transition_filename(id).as_path().exists())
+    }
+
+    fn add_transition(&self, transition: &Transition) -> Result<bool, Self::Error> {
+        let filename = self.config.transition_filename(&transition.transition_id());
+        let exists = filename.as_path().exists();
+        transition.write_file(filename)?;
+        Ok(exists)
+    }
+
+    fn remove_transition(&self, id: &TransitionId) -> Result<bool, Self::Error> {
+        let filename = self.config.transition_filename(id);
         let existed = filename.as_path().exists();
         fs::remove_file(filename)?;
         Ok(existed)

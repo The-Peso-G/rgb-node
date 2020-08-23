@@ -11,12 +11,26 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use crate::api;
+use crate::api::reply;
+use crate::error::ServiceErrorDomain;
 
-#[derive(Clone, PartialEq, Debug, Display)]
+#[derive(Debug, Display, Error, From)]
 #[display_from(Debug)]
-#[non_exhaustive]
-pub enum Request {
-    Issue(api::fungible::Issue),
-    Transfer(api::fungible::TransferApi),
+pub enum Error {
+    #[derive_from]
+    ServiceError(ServiceErrorDomain),
+
+    #[derive_from]
+    Reply(reply::Failure),
+
+    #[derive_from]
+    Base64(base64::DecodeError),
+
+    #[derive_from]
+    Bitcoin(lnpbp::bitcoin::consensus::encode::Error),
+
+    #[derive_from]
+    Encoding(lnpbp::strict_encoding::Error),
+
+    UnexpectedResponse,
 }

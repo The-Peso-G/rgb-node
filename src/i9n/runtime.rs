@@ -35,11 +35,11 @@ impl Runtime {
             let rgbd_opts = rgbd::Opts {
                 verbose: 5,
                 bin_dir: String::new(),
-                data_dir: config.datadir.clone(),
+                data_dir: config.data_dir.clone(),
                 contracts: config
                     .contract_endpoints
                     .iter()
-                    .map(|(k, v)| k.clone())
+                    .map(|(k, _)| k.clone())
                     .collect(),
                 network: config.network,
                 threaded: true,

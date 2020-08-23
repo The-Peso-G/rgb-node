@@ -17,6 +17,7 @@ use core::str::FromStr;
 use std::path::PathBuf;
 
 use lnpbp::bp;
+use lnpbp::data_format::DataFormat;
 use lnpbp::lnp::transport::zmq::SocketLocator;
 
 use crate::constants::*;
@@ -30,13 +31,7 @@ use crate::constants::*;
 )]
 pub struct Opts {
     /// Sets verbosity level; can be used multiple times to increase verbosity
-    #[clap(
-        short = "v",
-        long = "verbose",
-        min_values = 0,
-        max_values = 4,
-        parse(from_occurrences)
-    )]
+    #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u8,
 
     /// Data directory path
@@ -46,6 +41,10 @@ pub struct Opts {
     /// Connection string to stash (exact format depends on used storage engine)
     #[clap(short = "s", long = "stash", default_value = FUNGIBLED_CACHE, env = "RGB_FUNGIBLED_CACHE")]
     pub cache: String,
+
+    /// Data format for cache storage (valid only if file storage is used)
+    #[clap(short, long, default_value = "yaml", env = "RGB_FUNGIBLED_FORMAT")]
+    pub format: DataFormat,
 
     /// ZMQ socket address string for REQ/REP API
     #[clap(
@@ -93,6 +92,7 @@ pub struct Config {
     pub verbose: u8,
     pub data_dir: PathBuf,
     pub cache: String,
+    pub format: DataFormat,
     pub rpc_endpoint: SocketLocator,
     pub pub_endpoint: SocketLocator,
     pub stash_rpc: SocketLocator,
@@ -125,6 +125,7 @@ impl Default for Config {
                 .parse()
                 .expect("Error in RGB_DATA_DIR constant value"),
             cache: FUNGIBLED_CACHE.to_string(),
+            format: DataFormat::Yaml,
             rpc_endpoint: "ipc:/tmp"
                 .parse()
                 .expect("Error in STASHD_RPC_ENDPOINT constant value"),

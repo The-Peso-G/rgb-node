@@ -127,6 +127,7 @@ pub enum RoutedError {
 pub enum ServiceErrorDomain {
     #[derive_from(::std::io::Error)]
     Io,
+    Stash,
     Storage,
     Index,
     Cache,
@@ -144,6 +145,7 @@ pub enum ServiceErrorDomain {
     Bitcoin,
     Lightning,
     Schema(String),
+    Anchor(String),
     #[derive_from]
     Internal(String),
 }
@@ -174,6 +176,7 @@ pub enum ApiErrorType {
     MissedArgument { request: String, argument: String },
     UnknownArgument { request: String, argument: String },
     MalformedArgument { request: String, argument: String },
+    UnexpectedReply,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error)]

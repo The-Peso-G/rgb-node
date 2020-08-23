@@ -21,7 +21,6 @@ use lnpbp::lnp::transport::zmq::SocketLocator;
 
 use super::{fungible, Error, Runtime};
 use crate::constants::*;
-use crate::error::ServiceErrorDomain;
 
 #[derive(Clap, Clone, Debug, Display)]
 #[display_from(Debug)]
@@ -33,14 +32,7 @@ use crate::error::ServiceErrorDomain;
 )]
 pub struct Opts {
     /// Sets verbosity level; can be used multiple times to increase verbosity
-    #[clap(
-        global = true,
-        short = "v",
-        long = "verbose",
-        min_values = 0,
-        max_values = 4,
-        parse(from_occurrences)
-    )]
+    #[clap(short, long, global = true, parse(from_occurrences))]
     pub verbose: u8,
 
     /// Data directory path

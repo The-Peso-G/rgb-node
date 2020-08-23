@@ -11,30 +11,35 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
+#![allow(dead_code)]
 #![feature(
-    never_type,
-    unwrap_infallible,
+    bool_to_option,
     in_band_lifetimes,
+    never_type,
     try_trait,
+    unwrap_infallible,
     with_options
 )]
 
 #[macro_use]
+extern crate clap;
+#[macro_use]
 extern crate amplify;
+#[macro_use]
+extern crate amplify_derive;
 #[macro_use]
 extern crate derive_wrapper;
 #[macro_use]
-extern crate diesel;
-#[macro_use]
 extern crate async_trait;
-#[macro_use]
 #[macro_use]
 extern crate log;
 
 #[macro_use]
 pub extern crate lnpbp;
+#[macro_use]
+pub extern crate lnpbp_derive;
 
-mod api;
+pub mod api;
 pub mod cli;
 pub mod constants;
 mod contracts;

@@ -11,23 +11,19 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use chrono::NaiveDateTime;
 use core::convert::TryFrom;
-use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, LinkedList};
 
-use bitcoin::secp256k1;
-use bitcoin::OutPoint;
-use lnpbp::bitcoin;
+use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 
+use lnpbp::bitcoin;
+use lnpbp::bitcoin::hashes::Hash;
 use lnpbp::bp;
-use lnpbp::miniscript::Miniscript;
 use lnpbp::rgb::prelude::*;
 
 use super::schema::{AssignmentsType, FieldType};
 use super::{schema, SchemaError};
-use lnpbp::rgb::prelude::amount::Revealed;
-use std::collections::btree_map::Entry;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Display, Default)]
 #[display_from(Display)]
@@ -81,7 +77,7 @@ impl Coins {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Debug, Display)]
+#[derive(Clone, Getters, Serialize, Deserialize, PartialEq, Debug, Display)]
 #[display_from(Debug)]
 pub struct Asset {
     id: ContractId,
@@ -90,12 +86,12 @@ pub struct Asset {
     description: Option<String>,
     supply: Supply,
     dust_limit: Coins,
-    network: bp::MagicNumber,
+    network_magic: bp::MagicNumber,
     fractional_bits: u8,
     date: NaiveDateTime,
     unspent_issue_txo: Option<bitcoin::OutPoint>,
     known_issues: Vec<LinkedList<Issue>>,
-    known_allocations: BTreeMap<bitcoin::OutPoint, Vec<amount::Revealed>>,
+    known_allocations: BTreeMap<bitcoin::OutPoint, Vec<(TransitionId, amount::Revealed)>>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Display, Default)]
@@ -115,8 +111,9 @@ pub struct Issue {
 }
 
 impl Asset {
+    #[inline]
     pub fn network(&self) -> bp::Network {
-        bp::Network::from_magic(self.network)
+        bp::Network::from_magic(self.network_magic)
     }
 
     pub fn add_issue(&self, _issue: Transition) -> Supply {
@@ -124,51 +121,23 @@ impl Asset {
     }
 
     #[inline]
-    pub fn id(&self) -> ContractId {
-        self.id
-    }
-
-    #[inline]
-    pub fn ticker(&self) -> &str {
-        self.ticker.as_str()
-    }
-
-    #[inline]
-    pub fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    #[inline]
-    fn description(&self) -> Option<&str> {
-        match &self.description {
-            None => None,
-            Some(s) => Some(s.as_str()),
-        }
-    }
-
-    #[inline]
-    pub fn supply(&self) -> Supply {
-        self.supply.clone()
-    }
-
-    #[inline]
-    pub fn dust_limit(&self) -> Coins {
-        self.dust_limit.clone()
-    }
-
-    #[inline]
-    pub fn fractional_bits(&self) -> u8 {
-        self.fractional_bits
-    }
-
-    #[inline]
-    pub fn date(&self) -> NaiveDateTime {
-        self.date
-    }
-
-    #[inline]
-    pub fn allocations(&self, seal: &bitcoin::OutPoint) -> Option<&Vec<amount::Revealed>> {
+    pub fn allocations(
+        &self,
+        seal: &bitcoin::OutPoint,
+    ) -> Option<&Vec<(TransitionId, amount::Revealed)>> {
         self.known_allocations.get(seal)
+    }
+
+    pub fn add_allocation(
+        &mut self,
+        seal: bitcoin::OutPoint,
+        transition_id: TransitionId,
+        amount: amount::Revealed,
+    ) {
+        self.known_allocations
+            .entry(seal)
+            .or_insert(vec![])
+            .push((transition_id, amount));
     }
 }
 
@@ -179,13 +148,14 @@ impl TryFrom<Genesis> for Asset {
         if genesis.schema_id() != schema::schema().schema_id() {
             Err(SchemaError::NotAllFieldsPresent)?;
         }
-        let fractional_bits = genesis.u8(-FieldType::FractionalBits)?;
+        let fractional_bits = genesis.u8(-FieldType::Precision)?;
         let supply =
             Coins::with_sats_precision(genesis.u64(-FieldType::IssuedSupply)?, fractional_bits);
 
+        let transition_id = TransitionId::from_inner(genesis.contract_id().into_inner());
         Ok(Self {
             id: genesis.contract_id(),
-            network: genesis.network().as_magic(),
+            network_magic: genesis.network().as_magic(),
             ticker: genesis.string(-FieldType::Ticker)?,
             name: genesis.string(-FieldType::Name)?,
             description: genesis.string(-FieldType::Description).next(),
@@ -227,7 +197,7 @@ impl TryFrom<Genesis> for Asset {
                             {
                                 data.entry(outpoint_reveal.clone().into())
                                     .or_insert(vec![])
-                                    .push(assigned_state.clone())
+                                    .push((transition_id, assigned_state.clone()))
                             }
                         });
                     }

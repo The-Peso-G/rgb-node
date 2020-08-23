@@ -14,16 +14,16 @@
 mod config;
 mod data;
 mod processor;
-mod request;
-mod rpc;
 mod runtime;
 
 pub(self) mod cache;
 
-pub use data::*;
+pub use data::{
+    schema, Asset, Coins, Invoice, Issue, Outcoincealed, Outcoins, Outpoint, OutpointDescriptor,
+    SchemaError, Supply,
+};
 
 pub use config::{Config, Opts};
-pub use rpc::Command;
 pub use runtime::{main_with_config, Runtime};
 
 pub use cache::CacheError;
