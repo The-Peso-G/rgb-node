@@ -1,19 +1,31 @@
-# librgb
-`librgb` is the reference implementation of [RGB Protocol](https://github.com/rgb-org/spec).
+# RGB Node & SDK
 
-`librgb` is written in "Rust"; "Cargo" is its build system and package manager.
+[![TravisCI](https://api.travis-ci.com/LNP-BP/rgb-node.svg?branch=master)](https://api.travis-ci.com/LNP-BP/rgb-node)
 
-## Install "Rust" and "Cargo"
+This repository contains RGB node source code and SDK for wallet & server-side
+development.
 
-Follow the instructions in [Rust Install](https://www.rust-lang.org/en-US/install.html)
-For those who use "macOS" it is possible to install "Rust" through `brew`:
+The node may run as a set of daemons (even in different docker containers);
+a multi-threaded single process or as a set of managed threads within a
+wallet app.
 
-`$ brew install rust`
+To compile the node, please run the following commands:
 
-## Build `librgb`
+    sudo apt update
+    sudo apt install -y build-essential pkg-config libzmq3-dev libssl1.0-dev libpq-dev
+    cargo build --release
+    
+Now, to run the node you can execute
 
-`$ cargo build`
+    target/release/rgbd --data-dir ~/.rgb --bin-dir target/release -v -v -v -v
 
-## Run the tests
-
-`$ cargo test --package rgb --lib tests`
+If you need NodeJS integration, you have to do the following:
+    
+    sudo apt install -y swig node-gyp
+    cd ffi
+    cargo build --release
+    cd nodejs
+    curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.34.0/install.sh | bash
+    nvm install v10
+    npm install
+    node example.js
