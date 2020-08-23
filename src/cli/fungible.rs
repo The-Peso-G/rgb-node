@@ -65,12 +65,6 @@ pub enum Command {
     /// Do a transfer of some requested asset to another party
     Transfer(TransferCli),
 
-    /// Do a transfer of some requested asset to another party
-    Validate {
-        /// Consignment file
-        consignment: PathBuf,
-    },
-
     /// Accepts an incoming payment
     Accept {
         /// Consignment file
@@ -81,12 +75,6 @@ pub enum Command {
 
         /// Outpoint blinding factor (generated when the invoice was created)
         blinding_factor: u32,
-    },
-
-    Forget {
-        /// Bitcoin transaction output that was spent and which data
-        /// has to be forgotten
-        outpoint: OutPoint,
     },
 }
 
@@ -125,7 +113,7 @@ pub struct TransferCli {
     pub fee: u64,
 
     /// Change output
-    // pub change: OutpointHash,
+    pub change: OutPoint,
 
     /// File to save consignment to
     pub consignment: PathBuf,
@@ -143,15 +131,11 @@ impl Command {
             Command::Invoice(invoice) => invoice.exec(runtime),
             Command::Issue(issue) => issue.exec(runtime),
             Command::Transfer(transfer) => transfer.exec(runtime),
-            Command::Validate { ref consignment } => {
-                self.exec_validate(runtime, consignment.clone())
-            }
             Command::Accept {
                 ref consignment,
                 outpoint,
                 blinding_factor,
             } => self.exec_accept(runtime, consignment.clone(), outpoint, blinding_factor),
-            Command::Forget { outpoint } => self.exec_forget(runtime, outpoint),
         }
     }
 
@@ -253,33 +237,6 @@ impl Command {
         Ok(())
     }
 
-    fn exec_validate(&self, mut runtime: Runtime, filename: PathBuf) -> Result<(), Error> {
-        use lnpbp::strict_encoding::strict_encode;
-
-        info!("Validating asset transfer...");
-
-        debug!("Reading consignment from file {:?}", &filename);
-        let consignment = Consignment::read_file(filename.clone()).map_err(|err| {
-            Error::InputFileFormatError(format!("{:?}", filename), format!("{}", err))
-        })?;
-        trace!("{:?}", strict_encode(&consignment));
-
-        match &*runtime.validate(consignment)? {
-            Reply::Failure(failure) => {
-                eprintln!("Server returned error: {}", failure);
-            }
-            Reply::Success => {
-                eprintln!("Asset transfer successfully validated.");
-            }
-            _ => {
-                eprintln!(
-                    "Unexpected server error; probably you connecting with outdated client version"
-                );
-            }
-        }
-        Ok(())
-    }
-
     fn exec_accept(
         &self,
         mut runtime: Runtime,
@@ -287,17 +244,14 @@ impl Command {
         outpoint: OutPoint,
         blinding_factor: u32,
     ) -> Result<(), Error> {
-        use lnpbp::strict_encoding::strict_encode;
-
         info!("Accepting asset transfer...");
 
         debug!("Reading consignment from file {:?}", &filename);
         let consignment = Consignment::read_file(filename.clone()).map_err(|err| {
             Error::InputFileFormatError(format!("{:?}", filename), format!("{}", err))
         })?;
-        trace!("{:?}", strict_encode(&consignment));
 
-        let api = if let Some((_, outpoint_hash)) = consignment.endpoints.get(0) {
+        let api = if let Some(outpoint_hash) = consignment.endpoints.get(0) {
             let outpoint_reveal = OutpointReveal {
                 blinding: blinding_factor,
                 txid: outpoint.txid,
@@ -329,29 +283,6 @@ impl Command {
                 );
             }
         }
-
-        Ok(())
-    }
-
-    fn exec_forget(&self, mut runtime: Runtime, outpoint: OutPoint) -> Result<(), Error> {
-        info!(
-            "Forgetting assets allocated to specific bitcoin transaction output that was spent..."
-        );
-
-        match &*runtime.forget(outpoint)? {
-            Reply::Failure(failure) => {
-                eprintln!("Server returned error: {}", failure);
-            }
-            Reply::Success => {
-                eprintln!("Assets are removed from the stash.");
-            }
-            _ => {
-                eprintln!(
-                    "Unexpected server error; probably you connecting with outdated client version"
-                );
-            }
-        }
-
         Ok(())
     }
 }
@@ -463,7 +394,7 @@ impl TransferCli {
                 coins: self.invoice.amount,
                 seal_confidential,
             }],
-            change: None, // TODO
+            change: self.change,
         };
 
         // TODO: Do tx output reorg for deterministic ordering
