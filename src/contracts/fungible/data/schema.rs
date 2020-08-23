@@ -16,20 +16,18 @@ use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::ToPrimitive;
 
 use lnpbp::rgb::schema::{
-    script, AssignmentAction, Bits, DataFormat, DiscreteFiniteFieldFormat, GenesisSchema,
-    Occurences, Schema, StateFormat, StateSchema, TransitionSchema,
+    script, Bits, DataFormat, GenesisSchema, HomomorphicFormat, Occurences, Schema, Scripting,
+    StateFormat, TransitionSchema,
 };
 
 use crate::error::ServiceErrorDomain;
 use crate::type_map;
 
 #[derive(Debug, Display, Error, From)]
-#[display_from(Debug)]
+#[display_from(Display)]
 pub enum SchemaError {
     #[derive_from(core::option::NoneError)]
     NotAllFieldsPresent,
-
-    WrongSchemaId,
 }
 
 impl From<SchemaError> for ServiceErrorDomain {
@@ -39,8 +37,8 @@ impl From<SchemaError> for ServiceErrorDomain {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Display, ToPrimitive, FromPrimitive)]
-#[display_from(Debug)]
-#[repr(u16)]
+#[display_from(Display)]
+#[repr(u8)]
 pub enum FieldType {
     Ticker = 0,
     Name = 1,
@@ -54,8 +52,7 @@ pub enum FieldType {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Display, ToPrimitive, FromPrimitive)]
-#[display_from(Debug)]
-#[repr(u16)]
+#[display_from(Display)]
 pub enum AssignmentsType {
     Issue = 0,
     Assets = 1,
@@ -63,8 +60,7 @@ pub enum AssignmentsType {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Display, ToPrimitive, FromPrimitive)]
-#[display_from(Debug)]
-#[repr(u16)]
+#[display_from(Display)]
 pub enum TransitionType {
     Issue = 0,
     Transfer = 1,
@@ -78,36 +74,16 @@ pub fn schema() -> Schema {
             FieldType::Name => DataFormat::String(256),
             FieldType::Description => DataFormat::String(1024),
             FieldType::TotalSupply => DataFormat::Unsigned(Bits::Bit64, 0, core::u64::MAX as u128),
-            FieldType::Precision => DataFormat::Unsigned(Bits::Bit8, 0, 18u128),
+            FieldType::Precision => DataFormat::Unsigned(Bits::Bit64, 0, 18u128),
             FieldType::IssuedSupply => DataFormat::Unsigned(Bits::Bit64, 0, core::u64::MAX as u128),
             FieldType::DustLimit => DataFormat::Unsigned(Bits::Bit64, 0, core::u64::MAX as u128),
             FieldType::PruneProof => DataFormat::Bytes(core::u16::MAX),
-            // While UNIX timestamps allow negative numbers; in context of RGB Schema, assets
-            // can't be issued in the past before RGB or Bitcoin even existed; so we prohibit
-            // all the dates before RGB release
-            // TODO: Update lower limit with the first RGB release
-            // Current lower time limit is 07/04/2020 @ 1:54pm (UTC)
-            FieldType::Timestamp => DataFormat::Integer(Bits::Bit64, 1593870844, core::i64::MAX as i128)
+            FieldType::Timestamp => DataFormat::Unsigned(Bits::Bit64, 0, core::u64::MAX as u128)
         },
         assignment_types: type_map! {
-            AssignmentsType::Issue => StateSchema {
-                format: StateFormat::Declarative,
-                abi: bmap! {
-                    AssignmentAction::Validate => script::Procedure::Standard(script::StandardProcedure::IssueControl)
-                }
-            },
-            AssignmentsType::Assets => StateSchema {
-                format: StateFormat::DiscreteFiniteField(DiscreteFiniteFieldFormat::Unsigned64bit),
-                abi: bmap! {
-                    AssignmentAction::Validate => script::Procedure::Standard(script::StandardProcedure::ConfidentialAmount)
-                }
-            },
-            AssignmentsType::Prune => StateSchema {
-                format: StateFormat::Declarative,
-                abi: bmap! {
-                    AssignmentAction::Validate => script::Procedure::Standard(script::StandardProcedure::Prunning)
-                }
-            }
+            AssignmentsType::Issue => StateFormat::Void,
+            AssignmentsType::Assets => StateFormat::Homomorphic(HomomorphicFormat::Amount),
+            AssignmentsType::Prune => StateFormat::Void
         },
         genesis: GenesisSchema {
             metadata: type_map! {
@@ -125,7 +101,10 @@ pub fn schema() -> Schema {
                 AssignmentsType::Assets => Occurences::NoneOrUpTo(None),
                 AssignmentsType::Prune => Occurences::NoneOrUpTo(None)
             },
-            abi: bmap! {},
+            scripting: Scripting {
+                validation: script::Procedure::Standard(script::StandardProcedure::IssueControl),
+                extensions: script::Extensions::ScriptsDenied,
+            },
         },
         transitions: type_map! {
             TransitionType::Issue => TransitionSchema {
@@ -140,7 +119,10 @@ pub fn schema() -> Schema {
                     AssignmentsType::Prune => Occurences::NoneOrUpTo(None),
                     AssignmentsType::Assets => Occurences::NoneOrUpTo(None)
                 },
-            abi: bmap! {}
+                scripting: Scripting {
+                    validation: script::Procedure::Standard(script::StandardProcedure::IssueControl),
+                    extensions: script::Extensions::ScriptsDenied,
+                }
             },
             TransitionType::Transfer => TransitionSchema {
                 metadata: type_map! {},
@@ -150,7 +132,10 @@ pub fn schema() -> Schema {
                 defines: type_map! {
                     AssignmentsType::Assets => Occurences::NoneOrUpTo(None)
                 },
-                abi: bmap! {}
+                scripting: Scripting {
+                    validation: script::Procedure::Standard(script::StandardProcedure::ConfidentialAmount),
+                    extensions: script::Extensions::ScriptsDenied,
+                }
             },
             TransitionType::Prune => TransitionSchema {
                 metadata: type_map! {
@@ -164,9 +149,16 @@ pub fn schema() -> Schema {
                     AssignmentsType::Prune => Occurences::NoneOrUpTo(None),
                     AssignmentsType::Assets => Occurences::NoneOrUpTo(None)
                 },
-                abi: bmap! {}
+                scripting: Scripting {
+                    // These means that the issuers may introduce custom
+                    // prune validation procedure
+                    validation: script::Procedure::NoValidation,
+                    extensions: script::Extensions::ScriptsReplace,
+                }
             }
         },
+        script_library: vec![],
+        script_extensions: script::Extensions::ScriptsDenied,
     }
 }
 
