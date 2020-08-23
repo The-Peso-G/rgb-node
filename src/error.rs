@@ -95,7 +95,6 @@ pub enum RuntimeError {
     Lnp(lnp::transport::Error),
     #[derive_from(lnp::presentation::Error)]
     BrokenTransport,
-    Internal(String),
 }
 
 impl RuntimeError {
