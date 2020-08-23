@@ -1,22 +1,31 @@
-# Kaleidoscope
+# RGB Node & SDK
 
-Kaleidoscope, command-line wallett for Bitcoion and RGB assets
+[![TravisCI](https://api.travis-ci.com/LNP-BP/rgb-node.svg?branch=master)](https://api.travis-ci.com/LNP-BP/rgb-node)
 
-## Installation
+This repository contains RGB node source code and SDK for wallet & server-side
+development.
 
-1. Install Cargo: `curl -sSf https://static.rust-lang.org/rustup.sh | sh`
-2. Build the project: `cargo build`
+The node may run as a set of daemons (even in different docker containers);
+a multi-threaded single process or as a set of managed threads within a
+wallet app.
 
-When the build is completed, the executable will be located at `./target/debug/kaleidoscope`.
+To compile the node, please run the following commands:
 
-For convenience, it can be useful to temporarily add the directory to your `PATH`, like so:
+    sudo apt update
+    sudo apt install -y build-essential pkg-config libzmq3-dev libssl1.0-dev libpq-dev
+    cargo build --release
+    
+Now, to run the node you can execute
 
-```
-export PATH=$(readlink -f ./target/debug):$PATH
-```
+    target/release/rgbd --data-dir ~/.rgb --bin-dir target/release -v -v -v -v
 
-Make sure that you can now run the executable with:
-
-```
-kaleidoscope --version
-```
+If you need NodeJS integration, you have to do the following:
+    
+    sudo apt install -y swig node-gyp
+    cd ffi
+    cargo build --release
+    cd nodejs
+    curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.34.0/install.sh | bash
+    nvm install v10
+    npm install
+    node example.js
